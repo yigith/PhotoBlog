@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using NuGet.Packaging;
 using PhotoBlog.Areas.Admin.Models;
 using PhotoBlog.Data;
 
@@ -26,7 +27,7 @@ namespace PhotoBlog.Areas.Admin.Controllers
         // GET: Admin/Posts
         public async Task<IActionResult> Index()
         {
-              return View(await _context.Posts.ToListAsync());
+            return View(await _context.Posts.ToListAsync());
         }
 
         // GET: Admin/Posts/Details/5
@@ -50,7 +51,25 @@ namespace PhotoBlog.Areas.Admin.Controllers
         // GET: Admin/Posts/Create
         public IActionResult Create()
         {
+            LoadTags();
             return View();
+        }
+
+        private void LoadTags(HashSet<string>? postedTags = null)
+        {
+
+            HashSet<string> tags = _context.Tags.Select(x => x.Name).ToHashSet();
+
+            if (postedTags != null)
+            {
+                tags.AddRange(postedTags);
+            }
+
+            ViewBag.Tags = tags.Select(x => new SelectListItem()
+            {
+                Text = x,
+                Value = x
+            }).OrderBy(x => x.Text);
         }
 
         // POST: Admin/Posts/Create
@@ -62,16 +81,33 @@ namespace PhotoBlog.Areas.Admin.Controllers
         {
             if (ModelState.IsValid)
             {
+                List<Tag> tags = new List<Tag>();
+
+                foreach (string tagName in vm.Tags!)
+                {
+                    var tag = _context.Tags.FirstOrDefault(x => x.Name == tagName);
+
+                    if (tag == null)
+                    {
+                        tag = new Tag() { Name = tagName };
+                    }
+
+                    tags.Add(tag);
+                }
+
                 var post = new Post()
                 {
                     Title = vm.Title,
                     Description = vm.Description,
-                    Photo = SavePhoto(vm.Photo!)
+                    Photo = SavePhoto(vm.Photo!),
+                    Tags = tags
                 };
                 _context.Add(post);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
             }
+
+            LoadTags(vm.Tags);
             return View(vm);
         }
 
@@ -130,10 +166,10 @@ namespace PhotoBlog.Areas.Admin.Controllers
                 if (vm.Photo != null)
                 {
                     DeletePhoto(post.Photo);
-                    post.Photo = SavePhoto(vm.Photo); 
+                    post.Photo = SavePhoto(vm.Photo);
                 }
                 await _context.SaveChangesAsync();
-                
+
                 return RedirectToAction(nameof(Index));
             }
             return View(vm);
@@ -172,7 +208,7 @@ namespace PhotoBlog.Areas.Admin.Controllers
                 DeletePhoto(post.Photo);
                 _context.Posts.Remove(post);
             }
-            
+
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
         }
@@ -192,7 +228,7 @@ namespace PhotoBlog.Areas.Admin.Controllers
 
         private bool PostExists(int id)
         {
-          return _context.Posts.Any(e => e.Id == id);
+            return _context.Posts.Any(e => e.Id == id);
         }
     }
 }
